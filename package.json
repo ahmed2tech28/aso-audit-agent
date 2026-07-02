@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.5",
+    "@ai-sdk/react": "^4.0.12",
     "@mastra/ai-sdk": "^1.6.1",
     "@mastra/core": "^1.48.0",
     "@mendable/firecrawl-js": "^4.29.0",

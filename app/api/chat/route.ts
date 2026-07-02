@@ -1,80 +1,91 @@
-import { createDataStreamResponse, streamText, tool } from 'ai';
-import { mastra } from '@/mastra';
+import { streamText, tool } from 'ai';
+import { google } from '@ai-sdk/google';
+import { z } from 'zod';
 import { auditWorkflow } from '@/mastra/workflows/auditWorkflow';
+
+const ASO_SYSTEM_PROMPT = `You are an App Store Optimization (ASO) Agent. Coordinate the conversation and orchestrate the ASO audit process.
+
+Follow this strict flow:
+1. Detect any Apple App Store or Google Play URLs in the user's message.
+2. Call the appMetadata tool to extract the app metadata (App ID, storefront).
+3. Present the extracted metadata to the user and ask: "Is this the app you meant? Reply 'yes' to start the full audit."
+4. Wait for the user's confirmation.
+5. When the user confirms, call the startAudit tool with the appId and storefront.
+6. Once the audit completes, explain the results naturally: highlight the Overall Score, key Quick Wins, and High Impact changes.
+
+IMPORTANT:
+- Never perform scraping or scoring logic yourself. You are strictly the conversational coordinator.
+- Keep responses concise and professional.
+- Do not make up scores or recommendations.`;
 
 export async function POST(req: Request) {
   const { messages } = await req.json();
-  const agent = mastra.getAgent('asoAgent');
-  
-  // Resolve model and instructions from the Mastra agent
-  const model = await agent.getModel();
-  const instructions = await agent.getInstructions();
-  const mastraTools = await agent.listTools();
 
-  return createDataStreamResponse({
-    execute: async (dataStream) => {
-      const result = streamText({
-        model: model as any, // Cast to any to bypass strict type mismatch if any
-        system: instructions as string,
-        messages,
-        tools: {
-          appMetadata: tool({
-            description: mastraTools.appMetadata.description,
-            parameters: mastraTools.appMetadata.inputSchema as any,
-            execute: async (args) => {
-              // Extract the inner Mastra tool execute function
-              return await mastraTools.appMetadata.execute({
-                inputData: args,
-                runId: 'req',
-                mastra: mastra,
-                requestContext: {},
-                engine: {} as any,
-                abortSignal: new AbortController().signal
-              } as any);
-            },
-          }),
-          startAudit: tool({
-            description: mastraTools.startAudit.description,
-            parameters: mastraTools.startAudit.inputSchema as any,
-            execute: async (args) => {
-              // Stream progress events to the client
-              dataStream.writeMessageAnnotation({ type: 'progress', message: 'Fetching metadata...' });
-              await new Promise((r) => setTimeout(r, 800));
-              
-              dataStream.writeMessageAnnotation({ type: 'progress', message: 'Scraping listing...' });
-              await new Promise((r) => setTimeout(r, 800));
+  const result = streamText({
+    model: google('gemini-1.5-pro'),
+    system: ASO_SYSTEM_PROMPT,
+    messages,
+    maxSteps: 5,
+    tools: {
+      appMetadata: tool({
+        description: 'Extracts the App ID and storefront from an App Store or Google Play URL.',
+        parameters: z.object({
+          appUrl: z.string().describe('The App Store or Google Play URL to parse.'),
+        }),
+        execute: async ({ appUrl }) => {
+          // Apple App Store URL patterns
+          const appleMatch =
+            appUrl.match(/apps\.apple\.com\/([a-z]{2})\/app\/[^/]+\/id(\d+)/i) ||
+            appUrl.match(/apps\.apple\.com\/([a-z]{2})\/app\/id(\d+)/i) ||
+            appUrl.match(/apps\.apple\.com\/app\/id(\d+)/i);
 
-              dataStream.writeMessageAnnotation({ type: 'progress', message: 'Reading screenshots...' });
-              await new Promise((r) => setTimeout(r, 800));
+          if (appleMatch) {
+            const storefront = appleMatch[1] ?? 'us';
+            const appId = appleMatch[2] ?? appleMatch[1];
+            return { appId, storefront, originalUrl: appUrl, platform: 'apple' };
+          }
 
-              dataStream.writeMessageAnnotation({ type: 'progress', message: 'Finding competitors...' });
-              await new Promise((r) => setTimeout(r, 800));
+          // Google Play URL patterns
+          const googleMatch = appUrl.match(/play\.google\.com\/store\/apps\/details\?id=([a-zA-Z0-9._]+)/i);
+          if (googleMatch) {
+            return {
+              appId: googleMatch[1],
+              storefront: 'google-play',
+              originalUrl: appUrl,
+              platform: 'google',
+            };
+          }
 
-              dataStream.writeMessageAnnotation({ type: 'progress', message: 'Calculating scores...' });
-              
-              // Execute the actual workflow
-              const run = await auditWorkflow.createRun();
-              const wfResult = await run.start({ triggerData: { appId: args.appId, storefront: args.storefront } });
-              
-              dataStream.writeMessageAnnotation({ type: 'progress', message: 'Generating recommendations...' });
-              await new Promise((r) => setTimeout(r, 800));
-              
-              dataStream.writeMessageAnnotation({ type: 'progress', message: 'Completed' });
-
-              // Send the final result as a special annotation to render the UI components
-              dataStream.writeMessageAnnotation({ type: 'auditResult', result: wfResult.results });
-
-              // Return a simple summary to the LLM so it doesn't try to parse the entire massive JSON
-              return { 
-                success: true, 
-                message: 'Audit completed successfully. The UI is now rendering the final report. Give the user a short, friendly summary of the overall score and 1 or 2 quick wins. Do not dump the raw data.' 
-              };
-            },
-          }),
+          throw new Error(`Invalid App Store or Google Play URL: ${appUrl}`);
         },
-      });
+      }),
 
-      result.mergeIntoDataStream(dataStream);
+      startAudit: tool({
+        description:
+          'Triggers the full ASO Audit Workflow. Call this ONLY after the user has explicitly confirmed the app metadata.',
+        parameters: z.object({
+          appId: z.string().describe('The App ID extracted from the URL.'),
+          storefront: z.string().optional().describe('The storefront or region code.'),
+        }),
+        execute: async ({ appId, storefront }) => {
+          const run = await auditWorkflow.createRun();
+          const wfResult = await run.start({
+            triggerData: { appId, storefront },
+          });
+
+          // Extract the final step result
+          const auditPayload =
+            wfResult?.results?.['run-recommendations']?.output?.auditPayload ?? null;
+
+          return {
+            success: true,
+            appId,
+            auditPayload,
+          };
+        },
+      }),
     },
   });
+
+  return result.toUIMessageStreamResponse();
 }
