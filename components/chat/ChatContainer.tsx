@@ -30,45 +30,40 @@ export function ChatContainer() {
   const [finalReport, setFinalReport] = useState<AuditPayload | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Parse tool results from the new v7 UIMessage parts API
+  // Parse tool parts from v7 UIMessage.parts
+  // Tool parts have type `tool-${toolName}` in SDK v7
   useEffect(() => {
     for (const message of messages) {
       if (message.role !== "assistant") continue;
 
       for (const part of message.parts) {
-        // appMetadata call — show progress started
-        if (
-          part.type === "tool-invocation" &&
-          part.toolInvocationId &&
-          (part as any).toolName === "appMetadata" &&
-          (part as any).state === "result"
-        ) {
-          setProgress((p) => ({ ...p, metadata: "completed" }));
+        // appMetadata part — type is "tool-appMetadata"
+        if (part.type === "tool-appMetadata") {
+          const p = part as any;
+          if (p.state === "output-available" || p.state === "output-error") {
+            setProgress((prev) => ({ ...prev, metadata: "completed" }));
+          }
         }
 
-        // startAudit call — show all steps as running then completed
-        if (
-          part.type === "tool-invocation" &&
-          part.toolInvocationId &&
-          (part as any).toolName === "startAudit"
-        ) {
-          const state = (part as any).state;
-          if (state === "call") {
-            setProgress((p) => ({
-              ...p,
+        // startAudit part — type is "tool-startAudit"
+        if (part.type === "tool-startAudit") {
+          const p = part as any;
+          if (p.state === "input-available" || p.state === "input-streaming") {
+            setProgress((prev) => ({
+              ...prev,
               metadata: "completed",
               listing: "running",
               screenshots: "running",
               reviews: "running",
               competitors: "running",
             }));
-          } else if (state === "result") {
-            const result = (part as any).result;
+          }
+          if (p.state === "output-available") {
+            const output = p.output;
             setProgress({
               metadata: "completed",
               listing: "completed",
@@ -79,9 +74,8 @@ export function ChatContainer() {
               recommendations: "completed",
               completed: true,
             });
-
-            if (result?.auditPayload) {
-              setFinalReport(result.auditPayload as AuditPayload);
+            if (output?.auditPayload) {
+              setFinalReport(output.auditPayload as AuditPayload);
             }
           }
         }
@@ -89,31 +83,27 @@ export function ChatContainer() {
     }
   }, [messages]);
 
-  const showProgress =
-    progress.metadata !== "pending" && !finalReport;
+  const showProgress = progress.metadata !== "pending" && !finalReport;
 
   return (
     <div className="flex h-screen w-full bg-background overflow-hidden">
       {/* Left: Chat */}
-      <div className="flex w-full max-w-md flex-col border-r border-border shadow-sm">
-        {/* Header */}
+      <div className="flex w-full max-w-md flex-col border-r border-border">
         <div className="flex items-center gap-3 border-b px-4 py-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
             <BotIcon className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="font-bold text-sm">ASO Audit Agent</h2>
+            <h2 className="text-sm font-bold">ASO Audit Agent</h2>
             <p className="text-xs text-muted-foreground">Powered by Gemini</p>
           </div>
         </div>
 
-        {/* Messages */}
         <ScrollArea className="flex-1 px-4 py-4">
           <Messages messages={messages as UIMessage[]} />
           <div ref={bottomRef} />
         </ScrollArea>
 
-        {/* Input */}
         <div className="border-t px-4 py-3">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input

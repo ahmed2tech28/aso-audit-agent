@@ -1,4 +1,4 @@
-import { streamText, tool } from 'ai';
+import { streamText, tool, isStepCount, convertToModelMessages } from 'ai';
 import { google } from '@ai-sdk/google';
 import { z } from 'zod';
 import { auditWorkflow } from '@/mastra/workflows/auditWorkflow';
@@ -14,7 +14,7 @@ Follow this strict flow:
 6. Once the audit completes, explain the results naturally: highlight the Overall Score, key Quick Wins, and High Impact changes.
 
 IMPORTANT:
-- Never perform scraping or scoring logic yourself. You are strictly the conversational coordinator.
+- Never perform scraping or scoring logic yourself.
 - Keep responses concise and professional.
 - Do not make up scores or recommendations.`;
 
@@ -24,35 +24,42 @@ export async function POST(req: Request) {
   const result = streamText({
     model: google('gemini-1.5-pro'),
     system: ASO_SYSTEM_PROMPT,
-    messages,
-    maxSteps: 5,
+    // convertToModelMessages converts UIMessage[] (from useChat) to model-compatible messages
+    messages: await convertToModelMessages(messages),
+    stopWhen: isStepCount(5),
     tools: {
       appMetadata: tool({
         description: 'Extracts the App ID and storefront from an App Store or Google Play URL.',
-        parameters: z.object({
+        inputSchema: z.object({
           appUrl: z.string().describe('The App Store or Google Play URL to parse.'),
         }),
-        execute: async ({ appUrl }) => {
+        execute: async (input) => {
+          const { appUrl } = input;
+
           // Apple App Store URL patterns
           const appleMatch =
             appUrl.match(/apps\.apple\.com\/([a-z]{2})\/app\/[^/]+\/id(\d+)/i) ||
-            appUrl.match(/apps\.apple\.com\/([a-z]{2})\/app\/id(\d+)/i) ||
-            appUrl.match(/apps\.apple\.com\/app\/id(\d+)/i);
+            appUrl.match(/apps\.apple\.com\/([a-z]{2})\/app\/id(\d+)/i);
 
           if (appleMatch) {
-            const storefront = appleMatch[1] ?? 'us';
-            const appId = appleMatch[2] ?? appleMatch[1];
-            return { appId, storefront, originalUrl: appUrl, platform: 'apple' };
+            return {
+              appId: appleMatch[2],
+              storefront: appleMatch[1],
+              originalUrl: appUrl,
+              platform: 'apple' as const,
+            };
           }
 
           // Google Play URL patterns
-          const googleMatch = appUrl.match(/play\.google\.com\/store\/apps\/details\?id=([a-zA-Z0-9._]+)/i);
+          const googleMatch = appUrl.match(
+            /play\.google\.com\/store\/apps\/details\?id=([a-zA-Z0-9._]+)/i,
+          );
           if (googleMatch) {
             return {
               appId: googleMatch[1],
               storefront: 'google-play',
               originalUrl: appUrl,
-              platform: 'google',
+              platform: 'google' as const,
             };
           }
 
@@ -63,25 +70,22 @@ export async function POST(req: Request) {
       startAudit: tool({
         description:
           'Triggers the full ASO Audit Workflow. Call this ONLY after the user has explicitly confirmed the app metadata.',
-        parameters: z.object({
+        inputSchema: z.object({
           appId: z.string().describe('The App ID extracted from the URL.'),
           storefront: z.string().optional().describe('The storefront or region code.'),
         }),
-        execute: async ({ appId, storefront }) => {
+        execute: async (input) => {
+          const { appId, storefront } = input;
+
           const run = await auditWorkflow.createRun();
           const wfResult = await run.start({
-            triggerData: { appId, storefront },
+            inputData: { appId, storefront },
           });
 
-          // Extract the final step result
           const auditPayload =
-            wfResult?.results?.['run-recommendations']?.output?.auditPayload ?? null;
+            (wfResult?.results as any)?.['run-recommendations']?.output?.auditPayload ?? null;
 
-          return {
-            success: true,
-            appId,
-            auditPayload,
-          };
+          return { success: true, appId, auditPayload };
         },
       }),
     },

@@ -30,14 +30,11 @@ export function Messages({ messages }: MessagesProps) {
         return (
           <div
             key={message.id}
-            className={cn(
-              "flex flex-col gap-2",
-              isUser ? "items-end" : "items-start"
-            )}
+            className={cn("flex flex-col gap-2", isUser ? "items-end" : "items-start")}
           >
             {message.parts.map((part, idx) => {
               // Text parts
-              if (part.type === "text" && part.text) {
+              if (part.type === "text" && (part as any).text) {
                 return (
                   <div
                     key={idx}
@@ -61,48 +58,37 @@ export function Messages({ messages }: MessagesProps) {
                         ),
                       }}
                     >
-                      {part.text}
+                      {(part as any).text}
                     </ReactMarkdown>
                   </div>
                 );
               }
 
-              // Tool invocation parts
-              if (part.type === "tool-invocation") {
-                const toolPart = part as any;
-                const { toolName, state, result } = toolPart;
-
-                if (toolName === "appMetadata") {
-                  if (state === "call") {
-                    return (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-2 text-xs text-muted-foreground"
-                      >
-                        <Loader2Icon className="h-3 w-3 animate-spin" />
-                        Detecting app…
-                      </div>
-                    );
-                  }
-                  if (state === "result" && result) {
-                    return (
-                      <MetadataConfirmation key={idx} result={result} />
-                    );
-                  }
+              // In SDK v7, tool parts have type `tool-${toolName}`
+              if (part.type === "tool-appMetadata") {
+                const p = part as any;
+                if (p.state === "input-streaming" || p.state === "input-available") {
+                  return (
+                    <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2Icon className="h-3 w-3 animate-spin" />
+                      Detecting app…
+                    </div>
+                  );
                 }
+                if (p.state === "output-available" && p.output) {
+                  return <MetadataConfirmation key={idx} result={p.output} />;
+                }
+              }
 
-                if (toolName === "startAudit") {
-                  if (state === "call") {
-                    return (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-2 text-xs text-muted-foreground"
-                      >
-                        <Loader2Icon className="h-3 w-3 animate-spin" />
-                        Running audit workflow…
-                      </div>
-                    );
-                  }
+              if (part.type === "tool-startAudit") {
+                const p = part as any;
+                if (p.state === "input-streaming" || p.state === "input-available") {
+                  return (
+                    <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2Icon className="h-3 w-3 animate-spin" />
+                      Running audit workflow…
+                    </div>
+                  );
                 }
               }
 
