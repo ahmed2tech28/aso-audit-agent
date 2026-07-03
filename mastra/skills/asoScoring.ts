@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { generateObject } from 'ai';
+import { generateText } from 'ai';
 import { groq } from '@ai-sdk/groq';
 
 export const asoScoringSkill = createTool({
@@ -29,21 +29,8 @@ export const asoScoringSkill = createTool({
     try {
       const { metadata, reviews, screenshots, competitors } = inputData;
       
-      const { object } = await generateObject({
+      const { text } = await generateText({
         model: groq('qwen/qwen3-32b'),
-        schema: z.object({
-          title: z.number().describe('Score from 0 to 10 for the app title.'),
-          subtitle: z.number().describe('Score from 0 to 5 for the app subtitle.'),
-          keywords: z.number().describe('Score from 0 to 15 for keyword optimization.'),
-          description: z.number().describe('Score from 0 to 10 for the app description.'),
-          screenshots: z.number().describe('Score from 0 to 10 for screenshots quality.'),
-          video: z.number().describe('Score from 0 to 5 for preview videos.'),
-          ratings: z.number().describe('Score from 0 to 15 for ratings and reviews sentiment.'),
-          icon: z.number().describe('Score from 0 to 5 for app icon quality.'),
-          conversion: z.number().describe('Score from 0 to 15 for estimated conversion rate.'),
-          competition: z.number().describe('Score from 0 to 10 for competition standing.'),
-          overall: z.number().describe('Overall score out of 100.'),
-        }),
         prompt: `You are an expert App Store Optimization (ASO) consultant.
         
 Analyze the following app data and assign realistic scores based on ASO best practices. Be extremely critical.
@@ -54,11 +41,26 @@ Reviews: ${JSON.stringify(reviews).slice(0, 1000)}
 Screenshots Count: ${Array.isArray(screenshots) ? screenshots.length : 0}
 Competitors Count: ${Array.isArray(competitors) ? competitors.length : 0}
 
-Assign individual component scores based on the requested maximums, and then sum them to calculate the overall score out of 100.
+Assign individual component scores based on the following rules:
+- title (0 to 10)
+- subtitle (0 to 5)
+- keywords (0 to 15)
+- description (0 to 10)
+- screenshots (0 to 10)
+- video (0 to 5)
+- ratings (0 to 15)
+- icon (0 to 5)
+- conversion (0 to 15)
+- competition (0 to 10)
+- overall (sum of the above, out of 100)
+
+RETURN ONLY A STRICT VALID JSON OBJECT EXACTLY MATCHING THE KEYS ABOVE. DO NOT INCLUDE ANY MARKDOWN BACKTICKS OR TEXT.
 `,
       });
 
-      return object;
+      // Parse the JSON text manually to bypass Groq json_schema limitations
+      const rawJson = text.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();
+      return JSON.parse(rawJson);
     } catch (error) {
       console.error('Error generating ASO scores:', error);
       throw new Error('Failed to generate ASO scores dynamically');

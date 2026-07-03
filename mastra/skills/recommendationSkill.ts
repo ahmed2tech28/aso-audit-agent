@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { generateObject } from 'ai';
+import { generateText } from 'ai';
 import { groq } from '@ai-sdk/groq';
 
 const RecommendationSchema = z.object({
@@ -34,13 +34,8 @@ export const recommendationSkill = createTool({
     try {
       const { metadata, scores, reviews, screenshots, competitors } = inputData;
       
-      const { object } = await generateObject({
+      const { text } = await generateText({
         model: groq('qwen/qwen3-32b'),
-        schema: z.object({
-          quickWins: z.array(RecommendationSchema).describe('1 to 3 quick win recommendations.'),
-          highImpact: z.array(RecommendationSchema).describe('1 to 3 high impact recommendations.'),
-          strategic: z.array(RecommendationSchema).describe('1 to 3 long-term strategic recommendations.'),
-        }),
         prompt: `You are an expert App Store Optimization (ASO) consultant.
         
 Analyze the following app data and AI-generated scores.
@@ -54,11 +49,17 @@ Metadata: ${JSON.stringify(metadata).slice(0, 500)}
 Reviews: ${JSON.stringify(reviews).slice(0, 1000)}
 Competitors Count: ${Array.isArray(competitors) ? competitors.length : 0}
 
-Ensure you strictly follow the output schema constraints.
+RETURN ONLY A STRICT VALID JSON OBJECT exactly matching this structure (no markdown formatting or backticks):
+{
+  "quickWins": [ { "title": "...", "category": "...", "priority": "high", "effort": "low", "impact": "medium", "evidence": "...", "reasoning": "...", "before": "...", "after": "..." } ],
+  "highImpact": [ ... ],
+  "strategic": [ ... ]
+}
 `,
       });
 
-      return object;
+      const rawJson = text.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();
+      return JSON.parse(rawJson);
     } catch (error) {
       console.error('Error generating recommendations:', error);
       throw new Error('Failed to generate ASO recommendations');
