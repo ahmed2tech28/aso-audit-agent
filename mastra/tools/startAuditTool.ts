@@ -17,7 +17,8 @@ export const startAuditTool = createTool({
     appId: z.string(),
     storefront: z.string().optional(),
   }),
-  execute: async ({ inputData }) => {
+  execute: async (inputData) => {
+    const { appId, storefront } = inputData;
     // We return a structured response indicating the audit has started.
     // The Route Handler will intercept this tool call and run the workflow in the background,
     // sending progress events via custom stream chunks.

@@ -1,5 +1,5 @@
 import { streamText, tool, isStepCount, convertToModelMessages } from 'ai';
-import { google } from '@ai-sdk/google';
+import { groq } from '@ai-sdk/groq';
 import { z } from 'zod';
 import { auditWorkflow } from '@/mastra/workflows/auditWorkflow';
 
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   const { messages } = await req.json();
 
   const result = streamText({
-    model: google('gemini-1.5-pro'),
+    model: groq('qwen/qwen3-32b'),
     system: ASO_SYSTEM_PROMPT,
     // convertToModelMessages converts UIMessage[] (from useChat) to model-compatible messages
     messages: await convertToModelMessages(messages),
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
           });
 
           const auditPayload =
-            (wfResult?.results as any)?.['run-recommendations']?.output?.auditPayload ?? null;
+            (wfResult?.steps as any)?.['run-recommendations']?.output?.auditPayload ?? null;
 
           return { success: true, appId, auditPayload };
         },

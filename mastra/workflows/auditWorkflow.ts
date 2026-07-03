@@ -10,8 +10,13 @@ const fetchListingStep = createStep({
   inputSchema: z.object({ appId: z.string(), storefront: z.string().optional() }),
   outputSchema: z.object({ listingData: z.any() }),
   execute: async ({ inputData }) => {
-    // Scaffold: Fetch listing info
-    return { listingData: { status: 'fetched', title: 'Sample App', subtitle: 'A great app' } };
+    try {
+      // Scaffold: Fetch listing info
+      return { listingData: { status: 'fetched', title: 'Sample App', subtitle: 'A great app' } };
+    } catch (error) {
+      console.error('Error fetching listing data:', error);
+      throw new Error('Failed to fetch listing data');
+    }
   },
 });
 
@@ -21,8 +26,13 @@ const fetchScreenshotsStep = createStep({
   inputSchema: z.object({ appId: z.string(), storefront: z.string().optional() }),
   outputSchema: z.object({ screenshots: z.array(z.string()) }),
   execute: async ({ inputData }) => {
-    // Scaffold: Fetch screenshots
-    return { screenshots: ['img1.png', 'img2.png'] };
+    try {
+      // Scaffold: Fetch screenshots
+      return { screenshots: ['img1.png', 'img2.png'] };
+    } catch (error) {
+      console.error('Error fetching screenshots:', error);
+      throw new Error('Failed to fetch screenshots');
+    }
   },
 });
 
@@ -32,8 +42,13 @@ const fetchReviewsStep = createStep({
   inputSchema: z.object({ appId: z.string(), storefront: z.string().optional() }),
   outputSchema: z.object({ reviews: z.array(z.any()) }),
   execute: async ({ inputData }) => {
-    // Scaffold: Fetch reviews
-    return { reviews: [{ rating: 5, comment: 'Great app!' }] };
+    try {
+      // Scaffold: Fetch reviews
+      return { reviews: [{ rating: 5, comment: 'Great app!' }] };
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+      throw new Error('Failed to fetch reviews');
+    }
   },
 });
 
@@ -43,8 +58,13 @@ const fetchCompetitorsStep = createStep({
   inputSchema: z.object({ appId: z.string(), storefront: z.string().optional() }),
   outputSchema: z.object({ competitors: z.array(z.any()) }),
   execute: async ({ inputData }) => {
-    // Scaffold: Fetch competitors
-    return { competitors: [{ id: 'comp1', title: 'Competitor App' }] };
+    try {
+      // Scaffold: Fetch competitors
+      return { competitors: [{ id: 'comp1', title: 'Competitor App' }] };
+    } catch (error) {
+      console.error('Error fetching competitors:', error);
+      throw new Error('Failed to fetch competitors');
+    }
   },
 });
 
@@ -66,19 +86,22 @@ const compileDataStep = createStep({
     competitors: z.array(z.any()),
   }),
   execute: async ({ inputData }) => {
-    return {
-      metadata: inputData['fetch-listing'].listingData, // Using listing data as metadata proxy
-      listingData: inputData['fetch-listing'].listingData,
-      screenshots: inputData['fetch-screenshots'].screenshots,
-      reviews: inputData['fetch-reviews'].reviews,
-      competitors: inputData['fetch-competitors'].competitors,
-    };
+    try {
+      return {
+        metadata: inputData['fetch-listing'].listingData, // Using listing data as metadata proxy
+        listingData: inputData['fetch-listing'].listingData,
+        screenshots: inputData['fetch-screenshots'].screenshots,
+        reviews: inputData['fetch-reviews'].reviews,
+        competitors: inputData['fetch-competitors'].competitors,
+      };
+    } catch (error) {
+      console.error('Error compiling data:', error);
+      throw new Error('Failed to compile audit data');
+    }
   },
 });
 
 // Step 3: Run Scoring
-// We can wrap the tool in a step or just use createStep(asoScoringSkill)
-// However, mapping the input schema precisely is safer with a custom step
 const scoringStep = createStep({
   id: 'run-scoring',
   description: 'Calculates the ASO score',
@@ -91,7 +114,6 @@ const scoringStep = createStep({
   }),
   outputSchema: z.object({
     scores: z.any(),
-    // Pass through previous data to next step
     metadata: z.any(),
     listingData: z.any(),
     screenshots: z.array(z.string()),
@@ -99,26 +121,29 @@ const scoringStep = createStep({
     competitors: z.array(z.any()),
   }),
   execute: async ({ inputData, mastra, requestContext }) => {
-    // Call the tool manually to ensure we can pass through the rest of the payload
-    const result = await asoScoringSkill.execute(
-      {
-        metadata: inputData.metadata,
-        reviews: inputData.reviews,
-        screenshots: inputData.screenshots,
-        competitors: inputData.competitors,
-      },
-      // Execute the tool with minimal context
-      { 
-        runId: '', mastra: mastra as any, 
-        requestContext: requestContext as any, 
-        engine: {} as any, abortSignal: new AbortController().signal 
-      } as any
-    );
-    
-    return {
-      scores: result,
-      ...inputData
-    };
+    try {
+      const result = await asoScoringSkill.execute!(
+        {
+          metadata: inputData.metadata,
+          reviews: inputData.reviews,
+          screenshots: inputData.screenshots,
+          competitors: inputData.competitors,
+        },
+        { 
+          runId: '', mastra: mastra as any, 
+          requestContext: requestContext as any, 
+          engine: {} as any, abortSignal: new AbortController().signal 
+        } as any
+      );
+      
+      return {
+        scores: result,
+        ...inputData
+      };
+    } catch (error) {
+      console.error('Error during scoring step:', error);
+      throw new Error('Failed to calculate ASO scores');
+    }
   }
 });
 
@@ -145,42 +170,47 @@ const recommendationStep = createStep({
     }),
   }),
   execute: async ({ inputData, mastra, requestContext }) => {
-    const result = await recommendationSkill.execute(
-      {
-        metadata: inputData.metadata,
-        scores: inputData.scores,
-        reviews: inputData.reviews,
-        screenshots: inputData.screenshots,
-        competitors: inputData.competitors,
-      },
-      { 
-        runId: '', mastra: mastra as any, 
-        requestContext: requestContext as any, 
-        engine: {} as any, abortSignal: new AbortController().signal 
-      } as any
-    );
+    try {
+      const result = await recommendationSkill.execute!(
+        {
+          metadata: inputData.metadata,
+          scores: inputData.scores,
+          reviews: inputData.reviews,
+          screenshots: inputData.screenshots,
+          competitors: inputData.competitors,
+        },
+        { 
+          runId: '', mastra: mastra as any, 
+          requestContext: requestContext as any, 
+          engine: {} as any, abortSignal: new AbortController().signal 
+        } as any
+      );
 
-    return {
-      auditPayload: {
-        listingData: inputData.listingData,
-        screenshots: inputData.screenshots,
-        reviews: inputData.reviews,
-        competitors: inputData.competitors,
-        scores: inputData.scores,
-        recommendations: result,
-      }
-    };
+      return {
+        auditPayload: {
+          listingData: inputData.listingData,
+          screenshots: inputData.screenshots,
+          reviews: inputData.reviews,
+          competitors: inputData.competitors,
+          scores: inputData.scores,
+          recommendations: result,
+        }
+      };
+    } catch (error) {
+      console.error('Error during recommendations step:', error);
+      throw new Error('Failed to generate ASO recommendations');
+    }
   }
 });
 
 export const auditWorkflow = new Workflow({
-  name: 'audit-workflow',
   id: 'audit-workflow',
   description: 'A workflow that coordinates fetching various ASO audit data.',
   inputSchema: z.object({
     appId: z.string(),
     storefront: z.string().optional(),
   }),
+  outputSchema: z.any(),
 })
   .parallel([
     fetchListingStep,

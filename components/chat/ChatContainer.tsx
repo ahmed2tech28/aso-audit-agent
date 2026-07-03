@@ -21,7 +21,7 @@ export function ChatContainer() {
 
   const [input, setInput] = useState("");
 
-  const [progress, setProgress] = useState<ProgressState>({
+  let progress: ProgressState = {
     metadata: "pending",
     listing: "pending",
     screenshots: "pending",
@@ -30,9 +30,9 @@ export function ChatContainer() {
     scoring: "pending",
     recommendations: "pending",
     completed: false,
-  });
+  };
 
-  const [finalReport, setFinalReport] = useState<AuditPayload | null>(null);
+  let finalReport: AuditPayload | null = null;
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -42,63 +42,42 @@ export function ChatContainer() {
     });
   }, [messages]);
 
-  useEffect(() => {
-    for (const message of messages) {
-      if (message.role !== "assistant") continue;
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
 
-      for (const part of message.parts) {
-        switch (part.type) {
-          case "tool-appMetadata": {
-            if (
-              part.state === "output-available" ||
-              part.state === "output-error"
-            ) {
-              setProgress((prev) => ({
-                ...prev,
-                metadata: "completed",
-              }));
-            }
-            break;
-          }
+    for (const part of message.parts) {
+      if (part.type === "tool-appMetadata") {
+        if (part.state === "output-available" || part.state === "output-error") {
+          progress.metadata = "completed";
+        }
+      } else if (part.type === "tool-startAudit") {
+        if (part.state === "input-available" || part.state === "input-streaming") {
+          progress.metadata = "completed";
+          progress.listing = "running";
+          progress.screenshots = "running";
+          progress.reviews = "running";
+          progress.competitors = "running";
+        }
 
-          case "tool-startAudit": {
-            if (
-              part.state === "input-available" ||
-              part.state === "input-streaming"
-            ) {
-              setProgress((prev) => ({
-                ...prev,
-                metadata: "completed",
-                listing: "running",
-                screenshots: "running",
-                reviews: "running",
-                competitors: "running",
-              }));
-            }
+        if (part.state === "output-available") {
+          progress = {
+            metadata: "completed",
+            listing: "completed",
+            screenshots: "completed",
+            reviews: "completed",
+            competitors: "completed",
+            scoring: "completed",
+            recommendations: "completed",
+            completed: true,
+          };
 
-            if (part.state === "output-available") {
-              setProgress({
-                metadata: "completed",
-                listing: "completed",
-                screenshots: "completed",
-                reviews: "completed",
-                competitors: "completed",
-                scoring: "completed",
-                recommendations: "completed",
-                completed: true,
-              });
-
-              if (part.output) {
-                setFinalReport((part.output as any).auditPayload as AuditPayload);
-              }
-            }
-
-            break;
+          if (part.output) {
+            finalReport = (part.output as any).auditPayload as AuditPayload;
           }
         }
       }
     }
-  }, [messages]);
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

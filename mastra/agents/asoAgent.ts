@@ -1,9 +1,10 @@
 import { Agent } from '@mastra/core/agent';
-import { google } from '@ai-sdk/google';
+import { groq } from '@ai-sdk/groq';
 import { appMetadataTool } from '../tools/appMetadata';
 import { startAuditTool } from '../tools/startAuditTool';
 
 export const asoAgent = new Agent({
+  id: 'aso-agent',
   name: 'ASO Agent',
   instructions: `You are an App Store Optimization (ASO) Agent. Your goal is to coordinate the conversation with the user and orchestrate the ASO audit process.
 
@@ -19,7 +20,7 @@ IMPORTANT:
 - Never perform the scraping or scoring logic yourself. You are strictly the conversational coordinator.
 - Keep your responses concise and professional.
 - Do not make up scores or recommendations. Wait for the actual audit payload.`,
-  model: google('gemini-1.5-pro'),
+  model: groq('qwen/qwen3-32b'),
   tools: {
     appMetadata: appMetadataTool,
     startAudit: startAuditTool,

@@ -23,7 +23,7 @@ export const asoScoringSkill = createTool({
     competition: z.number(),
     overall: z.number(),
   }),
-  execute: async ({ inputData }) => {
+  execute: async (inputData) => {
     const { metadata, reviews, screenshots, competitors } = inputData;
     
     // The implementation would dynamically calculate these based on the inputs.
