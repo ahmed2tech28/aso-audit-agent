@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { generateObject } from 'ai';
-import { google } from '@ai-sdk/google';
+import { groq } from '@ai-sdk/groq';
 
 export const asoScoringSkill = createTool({
   id: 'aso-scoring-skill',
@@ -30,7 +30,7 @@ export const asoScoringSkill = createTool({
       const { metadata, reviews, screenshots, competitors } = inputData;
       
       const { object } = await generateObject({
-        model: google('gemini-1.5-pro'),
+        model: groq('qwen/qwen3-32b'),
         schema: z.object({
           title: z.number().describe('Score from 0 to 10 for the app title.'),
           subtitle: z.number().describe('Score from 0 to 5 for the app subtitle.'),

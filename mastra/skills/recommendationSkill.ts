@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { generateObject } from 'ai';
-import { google } from '@ai-sdk/google';
+import { groq } from '@ai-sdk/groq';
 
 const RecommendationSchema = z.object({
   title: z.string(),
@@ -35,7 +35,7 @@ export const recommendationSkill = createTool({
       const { metadata, scores, reviews, screenshots, competitors } = inputData;
       
       const { object } = await generateObject({
-        model: google('gemini-1.5-pro'),
+        model: groq('qwen/qwen3-32b'),
         schema: z.object({
           quickWins: z.array(RecommendationSchema).describe('1 to 3 quick win recommendations.'),
           highImpact: z.array(RecommendationSchema).describe('1 to 3 high impact recommendations.'),
