@@ -39,30 +39,14 @@ const fetchListingStep = createStep({
 
 const fetchScreenshotsStep = createStep({
   id: 'fetch-screenshots',
-  description: 'Fetches the app screenshots dynamically',
+  description: 'Placeholder step for screenshots',
   inputSchema: z.object({ appId: z.string(), storefront: z.string().optional() }),
   outputSchema: z.object({ screenshots: z.array(z.string()) }),
   execute: async ({ inputData }) => {
-    try {
-      let screenshots: string[] = [];
-      if (isAppleApp(inputData.appId)) {
-        const appData = await appStore.app({ 
-          id: inputData.appId, 
-          country: inputData.storefront || 'us' 
-        });
-        screenshots = appData.screenshots || [];
-      } else {
-        const appData = await gplay.app({ 
-          appId: inputData.appId,
-          country: inputData.storefront || 'us'
-        });
-        screenshots = appData.screenshots || [];
-      }
-      return { screenshots };
-    } catch (error) {
-      console.error('Error fetching screenshots:', error);
-      throw new Error('Failed to fetch dynamic screenshots');
-    }
+    // We no longer make a redundant network request here.
+    // Screenshots are already fetched as part of the main app listing payload.
+    // We just satisfy the parallel step signature and extract them in compileDataStep.
+    return { screenshots: [] };
   },
 });
 
@@ -144,16 +128,17 @@ const compileDataStep = createStep({
   }),
   execute: async ({ inputData }) => {
     try {
+      const listing = inputData['fetch-listing'].listingData;
       return {
         metadata: {
-          title: inputData['fetch-listing'].listingData.title,
-          description: inputData['fetch-listing'].listingData.description,
-          score: inputData['fetch-listing'].listingData.score,
-          ratings: inputData['fetch-listing'].listingData.ratings,
-          genre: inputData['fetch-listing'].listingData.primaryGenre || inputData['fetch-listing'].listingData.genre,
+          title: listing.title,
+          description: listing.description,
+          score: listing.score,
+          ratings: listing.ratings,
+          genre: listing.primaryGenre || listing.genre,
         }, 
-        listingData: inputData['fetch-listing'].listingData,
-        screenshots: inputData['fetch-screenshots'].screenshots,
+        listingData: listing,
+        screenshots: listing.screenshots || inputData['fetch-screenshots'].screenshots,
         reviews: inputData['fetch-reviews'].reviews,
         competitors: inputData['fetch-competitors'].competitors,
       };
