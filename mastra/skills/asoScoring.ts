@@ -1,9 +1,11 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { generateObject } from 'ai';
+import { google } from '@ai-sdk/google';
 
 export const asoScoringSkill = createTool({
   id: 'aso-scoring-skill',
-  description: 'Calculates an ASO score out of 100 from various inputs.',
+  description: 'Calculates an ASO score dynamically using AI.',
   inputSchema: z.object({
     metadata: z.any(),
     reviews: z.any(),
@@ -24,69 +26,42 @@ export const asoScoringSkill = createTool({
     overall: z.number(),
   }),
   execute: async (inputData) => {
-    const { metadata, reviews, screenshots, competitors } = inputData;
-    
-    // The implementation would dynamically calculate these based on the inputs.
-    // We define maximum weights that sum to 100 for normalization.
-    const maxWeights = {
-      title: 10,
-      subtitle: 5,
-      keywords: 15,
-      description: 10,
-      screenshots: 10,
-      video: 5,
-      ratings: 15,
-      icon: 5,
-      conversion: 15,
-      competition: 10,
-    };
+    try {
+      const { metadata, reviews, screenshots, competitors } = inputData;
+      
+      const { object } = await generateObject({
+        model: google('gemini-1.5-pro'),
+        schema: z.object({
+          title: z.number().describe('Score from 0 to 10 for the app title.'),
+          subtitle: z.number().describe('Score from 0 to 5 for the app subtitle.'),
+          keywords: z.number().describe('Score from 0 to 15 for keyword optimization.'),
+          description: z.number().describe('Score from 0 to 10 for the app description.'),
+          screenshots: z.number().describe('Score from 0 to 10 for screenshots quality.'),
+          video: z.number().describe('Score from 0 to 5 for preview videos.'),
+          ratings: z.number().describe('Score from 0 to 15 for ratings and reviews sentiment.'),
+          icon: z.number().describe('Score from 0 to 5 for app icon quality.'),
+          conversion: z.number().describe('Score from 0 to 15 for estimated conversion rate.'),
+          competition: z.number().describe('Score from 0 to 10 for competition standing.'),
+          overall: z.number().describe('Overall score out of 100.'),
+        }),
+        prompt: `You are an expert App Store Optimization (ASO) consultant.
+        
+Analyze the following app data and assign realistic scores based on ASO best practices. Be extremely critical.
 
-    // Scaffolding: assume some calculated raw scores between 0 and 1
-    const rawScores = {
-      title: 0.8,
-      subtitle: 0.9,
-      keywords: 0.7,
-      description: 0.85,
-      screenshots: Array.isArray(screenshots) && screenshots.length > 0 ? 0.9 : 0.0,
-      video: 0.0, // Assuming no video initially
-      ratings: Array.isArray(reviews) && reviews.length > 0 ? 0.8 : 0.5,
-      icon: 0.95,
-      conversion: 0.75,
-      competition: Array.isArray(competitors) && competitors.length > 0 ? 0.6 : 0.8,
-    };
+Data:
+Metadata: ${JSON.stringify(metadata).slice(0, 1000)}
+Reviews: ${JSON.stringify(reviews).slice(0, 1000)}
+Screenshots Count: ${Array.isArray(screenshots) ? screenshots.length : 0}
+Competitors Count: ${Array.isArray(competitors) ? competitors.length : 0}
 
-    // Calculate final scores by applying weights
-    const scores = {
-      title: rawScores.title * maxWeights.title,
-      subtitle: rawScores.subtitle * maxWeights.subtitle,
-      keywords: rawScores.keywords * maxWeights.keywords,
-      description: rawScores.description * maxWeights.description,
-      screenshots: rawScores.screenshots * maxWeights.screenshots,
-      video: rawScores.video * maxWeights.video,
-      ratings: rawScores.ratings * maxWeights.ratings,
-      icon: rawScores.icon * maxWeights.icon,
-      conversion: rawScores.conversion * maxWeights.conversion,
-      competition: rawScores.competition * maxWeights.competition,
-    };
+Assign individual component scores based on the requested maximums, and then sum them to calculate the overall score out of 100.
+`,
+      });
 
-    // Normalize to 100
-    const totalMax = Object.values(maxWeights).reduce((a, b) => a + b, 0);
-    const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-    
-    const overall = (totalScore / totalMax) * 100;
-
-    return {
-      title: Number(scores.title.toFixed(2)),
-      subtitle: Number(scores.subtitle.toFixed(2)),
-      keywords: Number(scores.keywords.toFixed(2)),
-      description: Number(scores.description.toFixed(2)),
-      screenshots: Number(scores.screenshots.toFixed(2)),
-      video: Number(scores.video.toFixed(2)),
-      ratings: Number(scores.ratings.toFixed(2)),
-      icon: Number(scores.icon.toFixed(2)),
-      conversion: Number(scores.conversion.toFixed(2)),
-      competition: Number(scores.competition.toFixed(2)),
-      overall: Number(overall.toFixed(2)),
-    };
+      return object;
+    } catch (error) {
+      console.error('Error generating ASO scores:', error);
+      throw new Error('Failed to generate ASO scores dynamically');
+    }
   },
 });

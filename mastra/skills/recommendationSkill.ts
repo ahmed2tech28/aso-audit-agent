@@ -1,5 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { generateObject } from 'ai';
+import { google } from '@ai-sdk/google';
 
 const RecommendationSchema = z.object({
   title: z.string(),
@@ -15,7 +17,7 @@ const RecommendationSchema = z.object({
 
 export const recommendationSkill = createTool({
   id: 'recommendation-skill',
-  description: 'Generates actionable ASO recommendations based on audit data.',
+  description: 'Generates actionable ASO recommendations based on audit data using AI.',
   inputSchema: z.object({
     metadata: z.any(),
     scores: z.any(),
@@ -31,48 +33,32 @@ export const recommendationSkill = createTool({
   execute: async (inputData) => {
     try {
       const { metadata, scores, reviews, screenshots, competitors } = inputData;
-      // In a real application, this could make an LLM call passing the input data to generate context-specific recommendations.
-      // For scaffolding, we return deterministic structured recommendations based on the schema.
       
-      return {
-        quickWins: [
-          {
-            title: 'Optimize App Subtitle',
-            category: 'Metadata',
-            priority: 'high' as const,
-            effort: 'low' as const,
-            impact: 'high' as const,
-            evidence: 'Subtitle lacks high-volume keywords.',
-            reasoning: 'The subtitle is heavily weighted by the App Store algorithm.',
-            before: 'Current vague subtitle',
-            after: 'Keyword-rich subtitle describing main value',
-          }
-        ],
-        highImpact: [
-          {
-            title: 'Refresh Screenshots',
-            category: 'Visuals',
-            priority: 'high' as const,
-            effort: 'medium' as const,
-            impact: 'high' as const,
-            evidence: 'Screenshots are outdated and lack clear value propositions.',
-            reasoning: 'Users make split-second decisions based on the first 3 screenshots.',
-            before: 'Raw app interface screenshots',
-            after: 'Designed screenshots with bold text callouts',
-          }
-        ],
-        strategic: [
-          {
-            title: 'Review Reply Strategy',
-            category: 'Engagement',
-            priority: 'medium' as const,
-            effort: 'high' as const,
-            impact: 'medium' as const,
-            evidence: 'Many negative reviews remain unanswered.',
-            reasoning: 'Replying to reviews can improve rating and user retention over time.',
-          }
-        ]
-      };
+      const { object } = await generateObject({
+        model: google('gemini-1.5-pro'),
+        schema: z.object({
+          quickWins: z.array(RecommendationSchema).describe('1 to 3 quick win recommendations.'),
+          highImpact: z.array(RecommendationSchema).describe('1 to 3 high impact recommendations.'),
+          strategic: z.array(RecommendationSchema).describe('1 to 3 long-term strategic recommendations.'),
+        }),
+        prompt: `You are an expert App Store Optimization (ASO) consultant.
+        
+Analyze the following app data and AI-generated scores.
+Generate hyper-specific, actionable recommendations tailored exactly to the app's current weak points.
+If the subtitle scored low, generate a subtitle recommendation with a "before" and "after" string.
+If the reviews mention bugs, generate a strategic recommendation to fix them.
+
+Data:
+Scores: ${JSON.stringify(scores)}
+Metadata: ${JSON.stringify(metadata).slice(0, 500)}
+Reviews: ${JSON.stringify(reviews).slice(0, 1000)}
+Competitors Count: ${Array.isArray(competitors) ? competitors.length : 0}
+
+Ensure you strictly follow the output schema constraints.
+`,
+      });
+
+      return object;
     } catch (error) {
       console.error('Error generating recommendations:', error);
       throw new Error('Failed to generate ASO recommendations');

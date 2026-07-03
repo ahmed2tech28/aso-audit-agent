@@ -3,67 +3,124 @@ import { z } from 'zod';
 import { asoScoringSkill } from '../skills/asoScoring';
 import { recommendationSkill } from '../skills/recommendationSkill';
 
-// Step 1: Parallel fetching steps (Scaffolding)
+// Dynamic Scrapers
+import gplay from 'google-play-scraper';
+import appStore from 'app-store-scraper';
+
+const isAppleApp = (appId: string) => /^\d+$/.test(appId);
+
+// Step 1: Parallel fetching steps (Dynamic)
 const fetchListingStep = createStep({
   id: 'fetch-listing',
-  description: 'Fetches the app listing information',
+  description: 'Fetches the app listing information dynamically',
   inputSchema: z.object({ appId: z.string(), storefront: z.string().optional() }),
   outputSchema: z.object({ listingData: z.any() }),
   execute: async ({ inputData }) => {
     try {
-      // Scaffold: Fetch listing info
-      return { listingData: { status: 'fetched', title: 'Sample App', subtitle: 'A great app' } };
+      let listingData;
+      if (isAppleApp(inputData.appId)) {
+        listingData = await appStore.app({ 
+          id: inputData.appId, 
+          country: inputData.storefront || 'us' 
+        });
+      } else {
+        listingData = await gplay.app({ 
+          appId: inputData.appId,
+          country: inputData.storefront || 'us'
+        });
+      }
+      return { listingData };
     } catch (error) {
       console.error('Error fetching listing data:', error);
-      throw new Error('Failed to fetch listing data');
+      throw new Error('Failed to fetch dynamic listing data');
     }
   },
 });
 
 const fetchScreenshotsStep = createStep({
   id: 'fetch-screenshots',
-  description: 'Fetches the app screenshots',
+  description: 'Fetches the app screenshots dynamically',
   inputSchema: z.object({ appId: z.string(), storefront: z.string().optional() }),
   outputSchema: z.object({ screenshots: z.array(z.string()) }),
   execute: async ({ inputData }) => {
     try {
-      // Scaffold: Fetch screenshots
-      return { screenshots: ['img1.png', 'img2.png'] };
+      let screenshots: string[] = [];
+      if (isAppleApp(inputData.appId)) {
+        const appData = await appStore.app({ 
+          id: inputData.appId, 
+          country: inputData.storefront || 'us' 
+        });
+        screenshots = appData.screenshots || [];
+      } else {
+        const appData = await gplay.app({ 
+          appId: inputData.appId,
+          country: inputData.storefront || 'us'
+        });
+        screenshots = appData.screenshots || [];
+      }
+      return { screenshots };
     } catch (error) {
       console.error('Error fetching screenshots:', error);
-      throw new Error('Failed to fetch screenshots');
+      throw new Error('Failed to fetch dynamic screenshots');
     }
   },
 });
 
 const fetchReviewsStep = createStep({
   id: 'fetch-reviews',
-  description: 'Fetches the app reviews',
+  description: 'Fetches the app reviews dynamically',
   inputSchema: z.object({ appId: z.string(), storefront: z.string().optional() }),
   outputSchema: z.object({ reviews: z.array(z.any()) }),
   execute: async ({ inputData }) => {
     try {
-      // Scaffold: Fetch reviews
-      return { reviews: [{ rating: 5, comment: 'Great app!' }] };
+      let reviewsData;
+      if (isAppleApp(inputData.appId)) {
+        reviewsData = await appStore.reviews({ 
+          id: inputData.appId, 
+          country: inputData.storefront || 'us',
+          page: 1
+        });
+      } else {
+        const result = await gplay.reviews({ 
+          appId: inputData.appId,
+          country: inputData.storefront || 'us',
+          num: 50
+        });
+        reviewsData = result.data;
+      }
+      return { reviews: reviewsData || [] };
     } catch (error) {
       console.error('Error fetching reviews:', error);
-      throw new Error('Failed to fetch reviews');
+      // Sometimes reviews fail to fetch if there are none, return empty array safely
+      return { reviews: [] };
     }
   },
 });
 
 const fetchCompetitorsStep = createStep({
   id: 'fetch-competitors',
-  description: 'Fetches competitors for the app',
+  description: 'Fetches competitors for the app dynamically',
   inputSchema: z.object({ appId: z.string(), storefront: z.string().optional() }),
   outputSchema: z.object({ competitors: z.array(z.any()) }),
   execute: async ({ inputData }) => {
     try {
-      // Scaffold: Fetch competitors
-      return { competitors: [{ id: 'comp1', title: 'Competitor App' }] };
+      let competitors;
+      if (isAppleApp(inputData.appId)) {
+        competitors = await appStore.similar({ 
+          id: inputData.appId,
+          country: inputData.storefront || 'us'
+        });
+      } else {
+        competitors = await gplay.similar({ 
+          appId: inputData.appId,
+          country: inputData.storefront || 'us'
+        });
+      }
+      return { competitors: competitors || [] };
     } catch (error) {
       console.error('Error fetching competitors:', error);
-      throw new Error('Failed to fetch competitors');
+      // It's acceptable for an app to not have public competitors, return empty
+      return { competitors: [] };
     }
   },
 });
@@ -88,7 +145,13 @@ const compileDataStep = createStep({
   execute: async ({ inputData }) => {
     try {
       return {
-        metadata: inputData['fetch-listing'].listingData, // Using listing data as metadata proxy
+        metadata: {
+          title: inputData['fetch-listing'].listingData.title,
+          description: inputData['fetch-listing'].listingData.description,
+          score: inputData['fetch-listing'].listingData.score,
+          ratings: inputData['fetch-listing'].listingData.ratings,
+          genre: inputData['fetch-listing'].listingData.primaryGenre || inputData['fetch-listing'].listingData.genre,
+        }, 
         listingData: inputData['fetch-listing'].listingData,
         screenshots: inputData['fetch-screenshots'].screenshots,
         reviews: inputData['fetch-reviews'].reviews,
@@ -104,7 +167,7 @@ const compileDataStep = createStep({
 // Step 3: Run Scoring
 const scoringStep = createStep({
   id: 'run-scoring',
-  description: 'Calculates the ASO score',
+  description: 'Calculates the ASO score dynamically using AI',
   inputSchema: z.object({
     metadata: z.any(),
     listingData: z.any(),
@@ -150,7 +213,7 @@ const scoringStep = createStep({
 // Step 4: Run Recommendations
 const recommendationStep = createStep({
   id: 'run-recommendations',
-  description: 'Generates recommendations',
+  description: 'Generates recommendations dynamically using AI',
   inputSchema: z.object({
     metadata: z.any(),
     listingData: z.any(),
@@ -205,7 +268,7 @@ const recommendationStep = createStep({
 
 export const auditWorkflow = new Workflow({
   id: 'audit-workflow',
-  description: 'A workflow that coordinates fetching various ASO audit data.',
+  description: 'A dynamic workflow that coordinates fetching various ASO audit data using real scrapers.',
   inputSchema: z.object({
     appId: z.string(),
     storefront: z.string().optional(),
