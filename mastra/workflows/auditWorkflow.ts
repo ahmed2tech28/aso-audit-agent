@@ -9,36 +9,7 @@ import appStore from 'app-store-scraper';
 
 const isAppleApp = (appId: string) => /^\d+$/.test(appId);
 
-// ------------------------------------------------------------------
-// FALLBACK MOCK DATA (Used if Apple/Google servers block the IP or timeout)
-// ------------------------------------------------------------------
-const getMockListing = (appId: string) => ({
-  title: 'Mock App (' + appId + ')',
-  description: 'This is a gracefully degraded mock description because the live app store scraper was blocked by a network timeout. This app helps users do amazing things, track their habits, and improve productivity.',
-  score: 4.5,
-  ratings: 12500,
-  genre: 'Productivity',
-  screenshots: [
-    'https://via.placeholder.com/300x600.png?text=Screenshot+1',
-    'https://via.placeholder.com/300x600.png?text=Screenshot+2',
-    'https://via.placeholder.com/300x600.png?text=Screenshot+3'
-  ]
-});
-
-const getMockReviews = () => [
-  // { rating: 5, text: 'Amazing app, changed my life! UI is super clean.' },
-  // { rating: 4, text: 'Great features but sometimes lags on older devices.' },
-  // { rating: 2, text: 'Recent update broke the login screen. Please fix!' },
-  // { rating: 5, text: 'Best productivity tool on the market right now.' },
-  // { rating: 1, text: 'Too many ads in the free version, completely unusable.' }
-];
-
-const getMockCompetitors = () => [
-  // { title: 'TaskMaster Pro', score: 4.7 },
-  // { title: 'HabitTracker', score: 4.2 },
-  // { title: 'FocusFlow', score: 4.8 }
-];
-// ------------------------------------------------------------------
+// No mock fallbacks. If data fetch fails, we will return empty arrays or throw.
 
 // Step 1: Parallel fetching steps (Dynamic with Fallbacks)
 const fetchListingStep = createStep({
@@ -62,9 +33,8 @@ const fetchListingStep = createStep({
       }
       return { listingData };
     } catch (error) {
-      console.error('Error fetching listing data. Falling back to mock data:', error);
-      // Fallback to mock data instead of crashing the workflow on ETIMEDOUT
-      return { listingData: getMockListing(inputData.appId) };
+      console.error('Error fetching listing data:', error);
+      throw new Error('Failed to fetch app listing. The app store might be blocking the connection.');
     }
   },
 });
@@ -106,8 +76,8 @@ const fetchReviewsStep = createStep({
       }
       return { reviews: reviewsData || [] };
     } catch (error) {
-      console.error('Error fetching reviews. Falling back to mock data:', error);
-      return { reviews: getMockReviews() };
+      console.error('Error fetching reviews:', error);
+      return { reviews: [] };
     }
   },
 });
@@ -121,20 +91,22 @@ const fetchCompetitorsStep = createStep({
     try {
       let competitors;
       if (isAppleApp(inputData.appId)) {
+        // Similar apps fetching frequently times out or isn't essential
+        // We will just return empty array if it fails rather than crashing
         competitors = await appStore.similar({
           id: inputData.appId,
           country: inputData.storefront || 'us'
-        });
+        }).catch(() => []);
       } else {
         competitors = await gplay.similar({
           appId: inputData.appId,
           country: inputData.storefront || 'us'
-        });
+        }).catch(() => []);
       }
       return { competitors: competitors || [] };
     } catch (error) {
-      console.error('Error fetching competitors. Falling back to mock data:', error);
-      return { competitors: getMockCompetitors() };
+      console.error('Error fetching competitors:', error);
+      return { competitors: [] };
     }
   },
 });
