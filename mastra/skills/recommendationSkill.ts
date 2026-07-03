@@ -58,8 +58,11 @@ RETURN ONLY A STRICT VALID JSON OBJECT exactly matching this structure (no markd
 `,
       });
 
-      const rawJson = text.replace(/\\`\\`\\`json/g, '').replace(/\\`\\`\\`/g, '').trim();
-      return JSON.parse(rawJson);
+      // Strip <think> tags and extract the JSON object to bypass Groq/Qwen limitations
+      const cleanedText = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      const match = cleanedText.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('No JSON object found in response');
+      return JSON.parse(match[0]);
     } catch (error) {
       console.error('Error generating recommendations:', error);
       throw new Error('Failed to generate ASO recommendations');
