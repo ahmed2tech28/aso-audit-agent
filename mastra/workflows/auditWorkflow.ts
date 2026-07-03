@@ -26,17 +26,17 @@ const getMockListing = (appId: string) => ({
 });
 
 const getMockReviews = () => [
-  { rating: 5, text: 'Amazing app, changed my life! UI is super clean.' },
-  { rating: 4, text: 'Great features but sometimes lags on older devices.' },
-  { rating: 2, text: 'Recent update broke the login screen. Please fix!' },
-  { rating: 5, text: 'Best productivity tool on the market right now.' },
-  { rating: 1, text: 'Too many ads in the free version, completely unusable.' }
+  // { rating: 5, text: 'Amazing app, changed my life! UI is super clean.' },
+  // { rating: 4, text: 'Great features but sometimes lags on older devices.' },
+  // { rating: 2, text: 'Recent update broke the login screen. Please fix!' },
+  // { rating: 5, text: 'Best productivity tool on the market right now.' },
+  // { rating: 1, text: 'Too many ads in the free version, completely unusable.' }
 ];
 
 const getMockCompetitors = () => [
-  { title: 'TaskMaster Pro', score: 4.7 },
-  { title: 'HabitTracker', score: 4.2 },
-  { title: 'FocusFlow', score: 4.8 }
+  // { title: 'TaskMaster Pro', score: 4.7 },
+  // { title: 'HabitTracker', score: 4.2 },
+  // { title: 'FocusFlow', score: 4.8 }
 ];
 // ------------------------------------------------------------------
 
@@ -50,12 +50,12 @@ const fetchListingStep = createStep({
     try {
       let listingData;
       if (isAppleApp(inputData.appId)) {
-        listingData = await appStore.app({ 
-          id: inputData.appId, 
-          country: inputData.storefront || 'us' 
+        listingData = await appStore.app({
+          id: inputData.appId,
+          country: inputData.storefront || 'us'
         });
       } else {
-        listingData = await gplay.app({ 
+        listingData = await gplay.app({
           appId: inputData.appId,
           country: inputData.storefront || 'us'
         });
@@ -91,13 +91,13 @@ const fetchReviewsStep = createStep({
     try {
       let reviewsData;
       if (isAppleApp(inputData.appId)) {
-        reviewsData = await appStore.reviews({ 
-          id: inputData.appId, 
+        reviewsData = await appStore.reviews({
+          id: inputData.appId,
           country: inputData.storefront || 'us',
           page: 1
         });
       } else {
-        const result = await gplay.reviews({ 
+        const result = await gplay.reviews({
           appId: inputData.appId,
           country: inputData.storefront || 'us',
           num: 20
@@ -121,12 +121,12 @@ const fetchCompetitorsStep = createStep({
     try {
       let competitors;
       if (isAppleApp(inputData.appId)) {
-        competitors = await appStore.similar({ 
+        competitors = await appStore.similar({
           id: inputData.appId,
           country: inputData.storefront || 'us'
         });
       } else {
-        competitors = await gplay.similar({ 
+        competitors = await gplay.similar({
           appId: inputData.appId,
           country: inputData.storefront || 'us'
         });
@@ -166,7 +166,7 @@ const compileDataStep = createStep({
           score: listing.score,
           ratings: listing.ratings,
           genre: listing.primaryGenre || listing.genre,
-        }, 
+        },
         listingData: listing,
         screenshots: listing.screenshots || inputData['fetch-screenshots'].screenshots || [],
         reviews: inputData['fetch-reviews'].reviews,
@@ -207,13 +207,13 @@ const scoringStep = createStep({
           screenshots: inputData.screenshots,
           competitors: inputData.competitors,
         },
-        { 
-          runId: '', mastra: mastra as any, 
-          requestContext: requestContext as any, 
-          engine: {} as any, abortSignal: new AbortController().signal 
+        {
+          runId: '', mastra: mastra as any,
+          requestContext: requestContext as any,
+          engine: {} as any, abortSignal: new AbortController().signal
         } as any
       );
-      
+
       return {
         scores: result,
         ...inputData
@@ -257,10 +257,10 @@ const recommendationStep = createStep({
           screenshots: inputData.screenshots,
           competitors: inputData.competitors,
         },
-        { 
-          runId: '', mastra: mastra as any, 
-          requestContext: requestContext as any, 
-          engine: {} as any, abortSignal: new AbortController().signal 
+        {
+          runId: '', mastra: mastra as any,
+          requestContext: requestContext as any,
+          engine: {} as any, abortSignal: new AbortController().signal
         } as any
       );
 
