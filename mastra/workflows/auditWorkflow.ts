@@ -34,7 +34,17 @@ const fetchListingStep = createStep({
       return { listingData };
     } catch (error) {
       console.error('Error fetching listing data:', error);
-      throw new Error('Failed to fetch app listing. The app store might be blocking the connection.');
+      // Return an explicit error state so the UI doesn't crash, but it doesn't use fake mock data either.
+      return { 
+        listingData: {
+          title: 'Connection Blocked',
+          description: 'The Apple App Store server blocked the connection from your local network (ETIMEDOUT). Try a Google Play URL instead, or deploy the app to bypass local IP blocks.',
+          score: 0,
+          ratings: 0,
+          genre: 'Error',
+          screenshots: []
+        } 
+      };
     }
   },
 });
